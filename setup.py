@@ -17,7 +17,7 @@ setup(
 	license='',
 	packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
 	namespace_packages=['ckanext', 'ckanext.googleanalytics'],
-	package_data={'ckanext.googleanalytics': ['*.json', 'templates/*.html', 'templates/*/*.html', 'templates/*/*/*.html', 'static/*.css', 'static/*.png', 'static/*.jpg', 'static/*.css', 'static/*.ico']},
+	package_data={'ckanext.googleanalytics': ['*.json', 'templates/*.html', 'templates/*/*.html', 'templates/*/*/*.html', 'fanstatic_library/*.js', 'static/*.css', 'static/*.png', 'static/*.jpg', 'static/*.css', 'static/*.ico']},
 	include_package_data=True,
 	zip_safe=False,
 	install_requires=[

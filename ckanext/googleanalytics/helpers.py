@@ -1,17 +1,19 @@
+
 import ckan.plugins.toolkit as tk
-from ckanext.googleanalytics import utils
+from ckanext.googleanalytics import config
 
 
 def get_helpers():
     return {
         "googleanalytics_header": googleanalytics_header,
         "googleanalytics_resource_prefix": googleanalytics_resource_prefix,
+        "googleanalytics_tracking_mode": googleanalytics_tracking_mode,
     }
 
 
 def googleanalytics_resource_prefix():
 
-    return utils.config_prefix()
+    return config.prefix()
 
 
 def googleanalytics_header():
@@ -23,17 +25,21 @@ def googleanalytics_header():
 
     """
 
-    fields = utils.config_fields()
+    fields = config.fields()
 
-    if utils.config_enable_user_id() and tk.c.user:
+    if config.enable_user_id() and tk.c.user:
         fields["userId"] = str(tk.c.userobj.id)
 
     data = {
-        "googleanalytics_id": utils.config_id(),
-        "googleanalytics_domain": utils.config_domain(),
+        "googleanalytics_id": config.tracking_id(),
+        "googleanalytics_domain": config.domain(),
         "googleanalytics_fields": str(fields),
-        "googleanalytics_linked_domains": utils.config_linked_domains(),
+        "googleanalytics_linked_domains": config.linked_domains(),
     }
     return tk.render_snippet(
         "googleanalytics/snippets/googleanalytics_header.html", data
     )
+
+
+def googleanalytics_tracking_mode():
+    return config.tracking_mode()

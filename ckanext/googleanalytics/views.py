@@ -5,13 +5,13 @@ import logging
 import six
 
 from flask import Blueprint
-from werkzeug.utils import import_string
 
 import ckan.plugins.toolkit as tk
 import ckan.views.api as api
 import ckan.views.resource as resource
 
 from ckan.common import g
+from ckanext.googleanalytics import utils, config
 
 CONFIG_HANDLER_PATH = "googleanalytics.download_handler"
 
@@ -30,7 +30,7 @@ def action(logic_function, ver=api.API_MAX_VERSION):
                 id = request_data["q"]
             if "query" in request_data:
                 id = request_data[u"query"]
-            _post_analytics(g.user, "CKAN API Request", logic_function, "", id)
+            _post_analytics(g.user, utils.EVENT_API, logic_function, "", id, request_data)
     except Exception as e:
         log.debug(e)
         pass
@@ -44,7 +44,7 @@ ga.add_url_rule(
     view_func=action,
 )
 ga.add_url_rule(
-    u"/<int(min=3, max={0}):ver>/action/<logic_function>".format(
+    "/api/<int(min=3, max={0}):ver>/action/<logic_function>".format(
         api.API_MAX_VERSION
     ),
     methods=["GET", "POST"],
@@ -53,12 +53,7 @@ ga.add_url_rule(
 
 
 def download(id, resource_id, filename=None, package_type="dataset"):
-    handler_path = tk.config.get(CONFIG_HANDLER_PATH)
-    if handler_path:
-        handler = import_string(handler_path, silent=True)
-    else:
-        handler = None
-        log.warning(("Missing {} config option.").format(CONFIG_HANDLER_PATH))
+    handler = config.download_handler()
     if not handler:
         log.debug("Use default CKAN callback for resource.download")
         handler = resource.download
@@ -87,23 +82,34 @@ ga.add_url_rule(
 
 
 def _post_analytics(
-    user, event_type, request_obj_type, request_function, request_id
+        user, event_type,
+        request_obj_type, request_function,
+        request_id, request_payload=None
 ):
 
     from ckanext.googleanalytics.plugin import GoogleAnalyticsPlugin
 
-    if tk.config.get("googleanalytics.id"):
-        data_dict = {
-            "v": 1,
-            "tid": tk.config.get("googleanalytics.id"),
-            "cid": hashlib.md5(six.ensure_binary(tk.c.user)).hexdigest(),
-            # customer id should be obfuscated
-            "t": "event",
-            "dh": tk.request.environ["HTTP_HOST"],
-            "dp": tk.request.environ["PATH_INFO"],
-            "dr": tk.request.environ.get("HTTP_REFERER", ""),
-            "ec": event_type,
-            "ea": request_obj_type + request_function,
-            "el": request_id,
-        }
+    if config.tracking_id():
+        if config.measurement_protocol_client_id() and event_type == utils.EVENT_API:
+            data_dict = utils.MeasurementProtocolData({
+                "event": event_type,
+                "object": request_obj_type,
+                "function": request_function,
+                "id": request_id,
+                "payload": request_payload,
+            })
+        else:
+            data_dict = utils.UniversalAnalyticsData({
+                "v": 1,
+                "tid": config.tracking_id(),
+                "cid": hashlib.md5(six.ensure_binary(tk.c.user)).hexdigest(),
+                # customer id should be obfuscated
+                "t": "event",
+                "dh": tk.request.environ["HTTP_HOST"],
+                "dp": tk.request.environ["PATH_INFO"],
+                "dr": tk.request.environ.get("HTTP_REFERER", ""),
+                "ec": event_type,
+                "ea": request_obj_type + request_function,
+                "el": request_id,
+            })
         GoogleAnalyticsPlugin.analytics_queue.put(data_dict)

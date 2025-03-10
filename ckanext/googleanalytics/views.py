@@ -11,9 +11,9 @@ import ckan.views.api as api
 import ckan.views.resource as resource
 
 from ckan.common import g
-from ckanext.googleanalytics import utils, config
+from ckan.plugins import PluginImplementations
 
-CONFIG_HANDLER_PATH = "googleanalytics.download_handler"
+from ckanext.googleanalytics import utils, config, interfaces
 
 log = logging.getLogger(__name__)
 ga = Blueprint("google_analytics", "google_analytics")
@@ -59,7 +59,7 @@ def download(id, resource_id, filename=None, package_type="dataset"):
         handler = resource.download
     _post_analytics(
         g.user,
-        "CKAN Resource Download Request",
+        utils.EVENT_DOWNLOAD,
         "Resource",
         "Download",
         resource_id,
@@ -90,14 +90,20 @@ def _post_analytics(
     from ckanext.googleanalytics.plugin import GoogleAnalyticsPlugin
 
     if config.tracking_id():
-        if config.measurement_protocol_client_id() and event_type == utils.EVENT_API:
+        mp_client_id = config.measurement_protocol_client_id()
+        if mp_client_id and (
+                event_type == utils.EVENT_API
+                or (event_type == utils.EVENT_DOWNLOAD and config.measurement_protocol_track_downloads())
+        ):
             data_dict = utils.MeasurementProtocolData({
                 "event": event_type,
                 "object": request_obj_type,
                 "function": request_function,
                 "id": request_id,
                 "payload": request_payload,
+                "user_id": hashlib.md5(six.ensure_binary(tk.c.user)).hexdigest()
             })
+
         else:
             data_dict = utils.UniversalAnalyticsData({
                 "v": 1,
@@ -112,4 +118,9 @@ def _post_analytics(
                 "ea": request_obj_type + request_function,
                 "el": request_id,
             })
+
+        for p in PluginImplementations(interfaces.IGoogleAnalytics):
+            if p.googleanalytics_skip_event(data_dict):
+                return
+
         GoogleAnalyticsPlugin.analytics_queue.put(data_dict)
